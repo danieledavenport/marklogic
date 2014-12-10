@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>MarkLogic at Catalyst</title>
+  <meta charset="utf-8">
+  <meta name="description" content="MarkLogic at Catalyst">
+  <meta name="author" content="Dan Davenport">
+  <meta name="generator" content="slidify" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta http-equiv="X-UA-Compatible" content="chrome=1">
+  <link rel="stylesheet" href="libraries/frameworks/io2012/css/default.css" media="all" >
+  <link rel="stylesheet" href="libraries/frameworks/io2012/css/phone.css" 
+    media="only screen and (max-device-width: 480px)" >
+  <link rel="stylesheet" href="libraries/frameworks/io2012/css/slidify.css" >
+  <link rel="stylesheet" href="libraries/highlighters/highlight.js/css/tomorrow.css" />
+  <base target="_blank"> <!-- This amazingness opens all links in a new tab. -->  <link rel=stylesheet href="./assets/css/ribbons.css"></link>
+
+  
+  <!-- Grab CDN jQuery, fall back to local if offline -->
+  <script src="http://ajax.aspnetcdn.com/ajax/jQuery/jquery-1.7.min.js"></script>
+  <script>window.jQuery || document.write('<script src="libraries/widgets/quiz/js/jquery.js"><\/script>')</script> 
+  <script data-main="libraries/frameworks/io2012/js/slides" 
+    src="libraries/frameworks/io2012/js/require-1.0.8.min.js">
+  </script>
+  
+  
+
+</head>
+<body style="opacity: 0">
+  <slides class="layout-widescreen">
+    
+    <!-- LOGO SLIDE -->
+        <slide class="title-slide segue nobackground">
+  <aside class="gdbar">
+    <img src="assets/img/CRSLogo.png">
+  </aside>
+  <hgroup class="auto-fadein">
+    <h1>MarkLogic at Catalyst</h1>
+    <h2>An Introduction</h2>
+    <p>Dan Davenport<br/>Catalyst Repository Systems, Systems Engineering Department</p>
+  </hgroup>
+  <article></article>  
+</slide>
+    
+
+    <!-- SLIDES -->
+    <slide class="" id="slide-1" style="background:;">
+  <hgroup>
+    <h2>Getting Started</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li> MarkLogic is the back-end database for the Insight application<br>
+
+<ul>
+<li> MarkLogic (ML) is not part of the CR application<br></li>
+<li> Users have no direct access to the ML database<br></li>
+<li> There are many other pieces to the Insight application<br></li>
+</ul></li>
+<li> ML is a nosql XML database<br>
+
+<ul>
+<li> Great paper to help understand how it works: <a href="http://developer.marklogic.com/pubs/architecture/inside-marklogic-server-r7.pdf">Inside MarkLogic Server</a></li>
+<li> Catalyst specific documentation: <a href="http://dilbert.caseshare.com/mediawiki/index.php/Category:InsightTechDocs">Insight Tech Docs</a></li>
+<li> ML7 Documentation: <a href="http://docs.marklogic.com/guide/admin">Administrator&#39;s Guide</a></li>
+</ul></li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="class" id="id" style="background:;">
+  <hgroup>
+    <h2>CRS MarchLogic Architecture</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li> Two types of servers (&quot;nodes&quot;) in an ML cluster<br>
+
+<ul>
+<li> e-nodes are load balanced, query/evaluation nodes which accept a query from a user, send out the query to each d-node (which will run the query against the data stored on that d-node), and then consolidate the results from all d-nodes</li>
+<li> d-nodes store the data in structures named &quot;forests&quot;</li>
+</ul></li>
+<li> A typical cluster (phobos, deimos, furcht, venus, mercury) has about 8 e-nodes and 16 d-nodes</li>
+<li> Insight Japan will likely start out as a 2 e-node, 4 d-node cluster<br></li>
+<li> Although it currently varies a bit, we are settling into six &quot;master&quot; forests on each d-node<br></li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-3" style="background:;">
+  <hgroup>
+    <h2>CRS MarchLogic Architecture (continued)</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li> We use what is called &quot;local replication&quot; where we keep a copy of each master forest on another d-node<br>
+
+<ul>
+<li> For example, d-node 1 has six master (&quot;a&quot;) forests which replicate to six replica (&quot;b&quot;) forests on d-node 2</li>
+<li> d-node 2 will also have six master (&quot;a&quot;) forests which replicate to six replica (&quot;b&quot;) forests on d-node 1</li>
+<li> If d-node 1 goes down (the MarkLogic process stops), the a forests will automatically fail over and the b forests on d-node 2 will become master<br></li>
+<li> The fail over (when the database is actually unavailable) takes about 1 minute<br></li>
+<li> If both d-node 1 and d-node 2 go down, the database (i.e., the entire cluster) will be unavailable</li>
+</ul></li>
+<li> ML is an ACID database -- ACID (Atomicity, Consistency, Isolation, Durability) is a set of properties that guarantee that database transactions are processed reliably.</li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-4" style="background:;">
+  <hgroup>
+    <h2>A MarkLogic Cluster</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li> All the e-nodes and d-nodes in a &quot;cluster&quot; act mostly like a single application on a single server (ML takes care of keeping a consistent code base on each server and manages communications between nodes)</li>
+<li> Within an ML cluster instance there are a number of &quot;databases&quot;
+
+<ul>
+<li> Documents: user data is stored here and this database is potentially huge (furcht currently stores almost 43 million documents, about 13TB); forests are named documents-001a, documents-001b, etc.<br></li>
+<li> Security:  data pertaining to users, roles, permissions, etc.; the forest &quot;Security&quot; is stored on the first d-node (e.g., furcht-d01) and its replica, &quot;Security-b&quot; is stored on its replication partner (e.g., furcht-d02)</li>
+<li> Modules: application code written in XQuery (known as the Caramel API) is stored on the first d-node; its replica, &quot;Modules-b&quot; is stored on its replication partner</li>
+<li> Schemas contains XML schemas; Triggers contains database triggers; and there are a few other small, special purpose databases</li>
+</ul></li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-5" style="background:;">
+  <hgroup>
+    <h2>The Caramel API</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li> MarkLogic has a RESTful API which allows an administrator to access it through curl; however Catalyst started using ML before that RESTful API was added so we (Reed Esau, primarily) wrote our own RESTful API called Caramel</li>
+<li> Currently about 300 XQuery files stored in the Modules database which each have a unique uri (e.g., &quot;/caramel-api/root/invoke/security/create-role.xqy&quot;)</li>
+<li> Caramel is under active development (Reed Esau and Ignacio Tripodi); they store code in the svn version control system; and periodically new versions must be &quot;deployed&quot; using a deployment script on each cluster
+
+<ul>
+<li>to butter and swiss for testing</li>
+<li>to all production and internal clusters during a Maintenance Window</li>
+</ul></li>
+<li>Typical curl/caramel call (in this case to get the current caramel version)</li>
+</ul>
+
+<pre><code class="r">curl $(/opt/ml-utils/caramelticket) http://furcht:8200/version
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-6" style="background:;">
+  <hgroup>
+    <h2>Bulkops</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li> Many operations performed by users in the Insight application involve resource intensive and time consuming operations</li>
+<li> To balance the use of resources so that users of one case are not affected by operations performed by users in another case, caramel splits large operations into many small pieces which are performed separately; collectively this is known as &quot;bulkops&quot;</li>
+<li> Within ML, there is a feature known as the Task Server and Task Scheduler
+
+<ul>
+<li> There are currently eight scheduled tasks set to run every minute</li>
+<li> Each scheduled task points to an XQuery file in the Modules database (e.g., /caramel-api/root/task/batch-execution.xqy)</li>
+<li> Each minute, the Task Server executes that XQuery file on each e-node; typically the XQuery file looks for a particular type of work waiting to be done and, if there is any, performs it</li>
+</ul></li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-7" style="background:;">
+  <hgroup>
+    <h2>Pausing Bulkops</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li> When a cluster is under extreme stress and is largely unresponsive (often because of some hardware failure), the first remedy is normally to pause bulkops to reduce load while troubleshooting</li>
+<li> There are some key:value pairs (&quot;locks&quot;) stored in redis used for this purpose; each time the Task Scheduler runs, it checks the state of these locks; if the &quot;lock&quot; is set it will not execute its XQuery file</li>
+<li> Set the locks by running the following command (&quot;true&quot; to set the locks and pause bulkops; &quot;false&quot; to clear the locks and resume bulkops; and no parameter just to check the current state of the locks)</li>
+</ul>
+
+<pre><code class="r">CARAMEL_HOST=furcht CLUSTER_PREFIX=furcht set_lock true
+</code></pre>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-8" style="background:;">
+  <hgroup>
+    <h2>Logs</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li> ML logs can be found in the directory /var/opt/MarkLogic/Logs on each node</li>
+<li> The primary log file is named &quot;ErrorLog.txt&quot;
+
+<ul>
+<li> At midnight, the logs roll over; a new &quot;ErrorLog.txt&quot; is created for the current day</li>
+<li> Older logs are renamed so that ErrorLog_1.txt contains logs for yesterday; ErrorLog_2.txt contains logs for the day before yesterday, etc.</li>
+<li>the oldest log is ErrorLog_6.txt (older logs are deleted)</li>
+</ul></li>
+<li> For e-nodes, ErrorLog.txt is large; the caramel api logs heavily</li>
+<li> For d-nodes, ErrorLog.txt is smaller and primarily is composed of entries related to merging (other entries may well be an indication of trouble)</li>
+<li> On the e-nodes, 8200_AccessLog.txt is also useful as it logs access through port 8200 (the primary port we use for caramel and thus virtually everything)</li>
+<li> Logs are typically forwarded to a logstash/elasticsearch server and can be searched through kibanna</li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-9" style="background:;">
+  <hgroup>
+    <h2>The Admin Console</h2>
+  </hgroup>
+  <article data-timings="">
+    <ul>
+<li> Although ML can be managed through its RESTful API, the easiest way to manage ML is through the Admin console, accessed by a browser at the url: http://furcht-e01:8001/default.xqy  (substitute the name of the cluster e-node)</li>
+<li> Navigate to Configure &gt; Databases &gt; Documents &gt; Status to check the status of the Documents database</li>
+<li> Navigate to Configure &gt; Groups &gt; eval-nodes &gt; Task Server &gt; Status to check the status of the Task Server and the bulkops Scheduled Tasks</li>
+<li> Navigate to Configure &gt; Databases &gt; Security &gt; Users to check roles/permissions for a particular user</li>
+<li> Navigate to Configure &gt; Databases &gt; Documents &gt; Element Range Indexes to check on a particular index (aka &quot;facet&quot;)</li>
+<li> Navigate to Configure &gt; Hosts &gt; (click on a host) &gt; Status and click on &quot;Shutdown&quot; to stop MarkLogic on a particular node (exercise caution here!)</li>
+<li> There are many, many paths to explore in the Admin console</li>
+</ul>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+<slide class="" id="slide-10" style="background:;">
+  <hgroup>
+    <h2>The Admin Console</h2>
+  </hgroup>
+  <article data-timings="">
+    <p><img src="assets/img/AdminConsole.png" alt="Admin Console"></p>
+
+  </article>
+  <!-- Presenter Notes -->
+</slide>
+
+    <slide class="backdrop"></slide>
+  </slides>
+  <div class="pagination pagination-small" id='io2012-ptoc' style="display:none;">
+    <ul>
+      <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=1 title='Getting Started'>
+         1
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=2 title='CRS MarchLogic Architecture'>
+         2
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=3 title='CRS MarchLogic Architecture (continued)'>
+         3
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=4 title='A MarkLogic Cluster'>
+         4
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=5 title='The Caramel API'>
+         5
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=6 title='Bulkops'>
+         6
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=7 title='Pausing Bulkops'>
+         7
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=8 title='Logs'>
+         8
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=9 title='The Admin Console'>
+         9
+      </a>
+    </li>
+    <li>
+      <a href="#" target="_self" rel='tooltip' 
+        data-slide=10 title='The Admin Console'>
+         10
+      </a>
+    </li>
+  </ul>
+  </div>  <!--[if IE]>
+    <script 
+      src="http://ajax.googleapis.com/ajax/libs/chrome-frame/1/CFInstall.min.js">  
+    </script>
+    <script>CFInstall.check({mode: 'overlay'});</script>
+  <![endif]-->
+</body>
+  <!-- Load Javascripts for Widgets -->
+  
+  <!-- LOAD HIGHLIGHTER JS FILES -->
+  <script src="libraries/highlighters/highlight.js/highlight.pack.js"></script>
+  <script>hljs.initHighlightingOnLoad();</script>
+  <!-- DONE LOADING HIGHLIGHTER JS FILES -->
+   
+  </html>
